@@ -1,3 +1,5 @@
+# COPIED FROM https://github.com/bitcoin/bitcoin/blob/1830dd8820fb90bac9aea32000e47d7eb1a99e1b/test/functional/test_framework/secp256k1.py
+
 # Copyright (c) 2022-2023 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -264,6 +266,7 @@ class GE:
     @staticmethod
     def from_bytes(b):
         """Convert a compressed or uncompressed encoding to a group element."""
+        assert len(b) in (33, 65)
         if len(b) == 33:
             if b[0] != 2 and b[0] != 3:
                 return None
@@ -276,7 +279,7 @@ class GE:
             if b[0] == 3:
                 r = -r
             return r
-        if len(b) == 65:
+        else:
             if b[0] != 4:
                 return None
             x = FE.from_bytes(b[1:33])
