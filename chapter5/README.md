@@ -65,7 +65,7 @@ missing... what is the **message** Satoshi signed to authorize the transaction f
 
 
 
-3. Derive the message from the transaction
+3. Derive the message from the transaction pt. 1
 
 It should be clear by just looking at the block explorer web page that a Bitcoin
 transaction has many different parts. Some parts are just small numbers and some
@@ -93,7 +93,7 @@ https://blockstream.info/api/tx/f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91
  */
 ```
 
-This is the raw transaction formatted for signing:
+This is the raw transaction with each component labeled:
 ```
     version:
      01000000
@@ -103,11 +103,10 @@ This is the raw transaction formatted for signing:
      c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd3704
     index of output of tx being spent by input #0:
      00000000
-    scriptPubKey of output being spent by input #0
-    (note that this comes from the block 9 coinbase transaction!):
-     43410411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6
-     909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656
-     b412a3ac
+    scriptSig to authorize spending the indicated output:
+     4847304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c615
+     48ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56cbbac4622
+     082221a8768d1d0901
     input #0 sequence:
      ffffffff
     number of outputs:
@@ -126,13 +125,69 @@ This is the raw transaction formatted for signing:
      b412a3ac
     locktime:
      00000000
-    hash type (from the input #0 signature):
-     01000000
 ```
 
-Copy each of the above fields in order and paste them into a single blob below:
 
-[ 0100... ... ... ]
+
+4. Derive the message from the transaction pt. 2
+
+It's impossible to sign a message containing it's own signature, so the scriptSig
+needs to be removed. In the Bitcoin protocol it is actually replaced by the
+scriptPubKey of the transaction output we are spending. We already found the
+scriptPubKey back in step 2, you can paste that in the blank.
+
+(chart doesn't need to be colored anymore, now it is actually a python script)
+
+```python
+msg = ""
+
+# version:
+msg += "01000000"
+
+# number of inputs:
+msg += "01"
+
+# hash of tx being spent by input #0:
+msg += "c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd3704"
+
+# index of output of tx being spent by input #0:
+msg += "00000000"
+
+# scriptPubKey of output being spent by input #0:
+# FILL IN THIS LINE!
+
+# input #0 sequence:
+msg += "ffffffff"
+
+# number of outputs:
+msg += "02"
+
+# output #0 value (10 BTC or 1,000,000,000 satoshis):
+msg += "00ca9a3b00000000"
+
+# output #0 scriptPubKey (Hal Finney's public key plus OP_CHECKSIG):
+msg += "434104ae1a62fe09c5f51b13905f07f06b99a2f7159b2225f374cd378d71302f"
+msg += "a28414e7aab37397f554a7df5f142c21c1b7303b8a0626f1baded5c72a704f7e"
+msg += "6cd84cac"
+
+# outut #1 value (40 BTC or 4,000,000,000 satoshis):
+msg += "00286bee00000000"
+
+# output #1 scriptPubKey (Satoshi's oen public key again, for change):
+msg += "43410411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6"
+msg += "909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656"
+msg += "b412a3ac"
+
+# locktime:
+msg += "00000000"
+
+# SIGHASH FLAG GOES HERE!
+```
+
+The last thing we need for our transaction message is a "sighash type flag".
+We'll cover this more in the next chapter but for now we'll just add the value
+`01000000` to the end of the message.
+
 
 ```
   (ANSWER:)
@@ -147,13 +202,14 @@ Copy each of the above fields in order and paste them into a single blob below:
     999b8643f656b412a3ac0000000001000000
 ```
 
+(success message):
 Finally we have a message! We also have a signature we know Satoshi created
 with his own private keys, and we have his public key. Let's learn how to verify
 the signature and then we can try to verify Vanderpoole's signature.
 
 
 
-4. Hash the transaction digest
+5. Hash the transaction digest
 
 The serialized transaction data we compiled in the last step is actually too
 long to sign or verify with ECDSA. Do we know any way to compress large chunks of
@@ -195,7 +251,7 @@ msg = int.from_bytes(double_hash)
 
 
 
-5. Decode the signature
+6. Decode the signature
 
 Satoshi's signature is encoded in a system called DER which is a subset of ASN.1
 https://letsencrypt.org/docs/a-warm-welcome-to-asn1-and-der/
@@ -223,7 +279,7 @@ sig_s = 0x181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09
 
 
 
-6. Decode the public key
+7. Decode the public key
 
 We learned in chapter 4 that public keys are really points in the ECDSA curve,
 meaning they have an x and y value. The first byte `04` means "uncompressed"
@@ -247,8 +303,7 @@ pubkey_y = 0xb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3
 ```
 
 
-
-7. Verify the signature!
+8. Verify the signature!
 
 At this point we have everything we need to do some ECDSA math:
 
@@ -301,9 +356,3 @@ else:
 
 We know Satoshi's signature is valid, it has been checked by every Bitcoin full
 node since 2010! If your program does not return "true" something is wrong.
-
-
-
-
-
-
