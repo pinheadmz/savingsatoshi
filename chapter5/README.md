@@ -13,7 +13,7 @@ This message is signed with the same private key.
 
 -----BEGIN BITCOIN SIGNATURE-----
 
-IIXCUGj6YMEAIBlD5RCWJBTu6mKggy0LmtgPwATZIolecTE6JPrP0nEynAPDIPtLXZ1vWMUYBnRChCUXNT2nw3o=
+H4vQbVD0pLK7pkzPto8BHourzsBrHMB3Qf5oYVmr741pPwdU2m6FaZZmxh4ScHxFoDelFC9qG0PnAUl5qMFth8k=
 
 -----END BITCOIN SIGNATURE----- 
 ```
@@ -307,52 +307,190 @@ pubkey_y = 0xb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3
 
 At this point we have everything we need to do some ECDSA math:
 
-```python
-# Signature:
-sig_r = 0x4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41
-sig_s = 0x181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09
-
-# Public Key:
-pubkey_x = 0x11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c
-pubkey_y = 0xb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3
-
-# Message digest:
-msg = 0x7a05c6145f10101e9d6325494245adf1297d80f8f38d4d576d57cdba220bcb19
-```
-
 The ECDSA signature verification algorithm is explained here:
 https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_verification_algorithm
 and here (Go to page 46, section 4.1.4):
 https://www.secg.org/sec1-v2.pdf
 
-You will need to create a Group Element object from the public key X and Y elements
-and then execute the ECDSA function:
+We created a Group Element object from the public key X and Y elements for you.
+You need to finish implementing the ECDSA signature verifcation function `verify()` that
+should only return `True` if everything is valid!
 
-(answer)
+(coding challenge)
 ```python
-from lib.secp256k1 import GE
-key_ge = GE(pubkey_x, pubkey_y)
+from lib.secp256k1 import GE, G
+
+# Message digest from step 5:
+msg = 0x7a05c6145f10101e9d6325494245adf1297d80f8f38d4d576d57cdba220bcb19
+
+# Signature values from step 6:
+sig_r = 0x4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41
+sig_s = 0x181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09
+
+# Public key values from step 7:
+key_ge = GE(0x11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c,
+            0xb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3)
+
+
+def verify(r, s, key, msg):
+  if r == 0 or r >= GE.ORDER:
+    print("FALSE - invalid r value")
+
+  if s == 0 or s >= GE.ORDER:
+    print("FALSE - invalid s value")
+
+  ##
+  # ANSWER starts here
+  ##
+  sig_s_inverted = pow(s, -1, GE.ORDER)
+  u1 = (msg * sig_s_inverted) % GE.ORDER
+  u2 = (r * sig_s_inverted) % GE.ORDER
+  R = (u1 * G) + (u2 * key)
+
+  return r == int(R.x)
+  # Should return True
 ```
+
+We know Satoshi's signature is valid, it has been checked by every Bitcoin full
+node since 2010! If your program does not return "True" something is wrong.
+
+
+
+9. Prepare Vanderpoole's message for verification
+
+Vanderpoole used a Bitcoin message signing protocol for his stun:
+https://github.com/bitcoin/bips/blob/master/bip-0137.mediawiki
+The computation uses the same algorithm we've already defined but the preperation
+of the data is a bit different.
+
+First, we need to encode his message into an array of bytes corresponding to the
+following template:
+
+```
+[size of prefix][prefix][size of message][message]
+```
+
+Then we will double-SHA256 hash that blob of data, and convert that hash into
+an integer. Complete the function `encode_message()`. It should return a 32-byte
+integer.
+
+(coding challenge):
+```python
+import hashlib
+
+# Defined by Bitcoin message signing protocol
+prefix = b"Bitcoin Signed Message:\n"
+
+# Provided by Vanderpoole
+text =  b"I am Vanderpoole and I have control of the private key Satoshi\n"
+text += b"used to sign the first-ever Bitcoin transaction confirmed in block #170.\n"
+text += b"This message is signed with the same private key."
+
+def encode_message(prefix, text):
+  ##
+  # ANSWER
+  ##
+  vector = bytes([len(prefix)]) + prefix + bytes([len(text)]) + text
+  vector_hash = hashlib.new('sha256', hashlib.new('sha256', vector).digest()).digest()
+  vp_msg = int.from_bytes(vector_hash)
+  return vp_msg
+  # 52301120241471554888909249431012931756072043317860288098683158858465117082178
+  # or
+  # 0x73a16290e005b119b9ce0ceea52949f0bd4f925e808b5a54c631702d3fea1242
+```
+
+
+
+10. Prepare Vanderpoole's signature for verification
+
+The Bitcoin message signing protocol Vanderpoole used specifies base64 for the
+signature. We need to decode that base64 string into a 65 byte sequence. For now,
+we can disregard the first byte of metadata. The remainder of the data are the
+32-byte r and s values we learned about in step 6.
+
+Complete the function `decode_sig()`. It should return a tuple with the (r, s) values.
+
+(coding challenge):
+```python
+import base64
+
+# Vanderpoole's signature
+vp_sig = "H4vQbVD0pLK7pkzPto8BHourzsBrHMB3Qf5oYVmr741pPwdU2m6FaZZmxh4ScHxFoDelFC9qG0PnAUl5qMFth8k="
+
+def decode_sig(vp_sig):
+  ##
+  # ANSWER
+  ##
+  # decode base64 into raw bytes
+  vp_sig_bytes = base64.b64decode(vp_sig)
+  # throw away first byte for now, remaining bytes are r and s
+  vp_sig_r = int.from_bytes(vp_sig_bytes[1:33])
+  vp_sig_s = int.from_bytes(vp_sig_bytes[33:])
+  return (vp_sig_r, vp_sig_s)
+  # (63239744615459417534795088953002824328865520877888079618399827727977035042153,
+  #  28508663025799969786676261677335521233963265910413171955666154169583931328457)
+  # or
+  # (0x8bd06d50f4a4b2bba64ccfb68f011e8babcec06b1cc07741fe686159abef8d69,
+  #  0x3f0754da6e85699666c61e12707c45a037a5142f6a1b43e7014979a8c16d87c9)
+```
+
+
+
+11. So, is Vanderpoole a liar?!
+
+There isn't much left to do except plug everything in and run the program!
+Drumroll please...
 
 ```python
 from lib.secp256k1 import GE, G
 
-if sig_r == 0 or sig_r >= GE.ORDER:
-  print("FALSE - invalid r value")
+# Message digest from step 9:
+msg = 0x73a16290e005b119b9ce0ceea52949f0bd4f925e808b5a54c631702d3fea1242
 
-if sig_s == 0 or sig_s >= GE.ORDER:
-  print("FALSE - invalid s value")
+# Signature values from step 10:
+sig_r = 0x8bd06d50f4a4b2bba64ccfb68f011e8babcec06b1cc07741fe686159abef8d69
+sig_s = 0x3f0754da6e85699666c61e12707c45a037a5142f6a1b43e7014979a8c16d87c9
 
-sig_s_inverted = pow(sig_s, -1, GE.ORDER)
-u1 = (msg * sig_s_inverted) % GE.ORDER
-u2 = (sig_r * sig_s_inverted) % GE.ORDER
-R = (u1 * G) + (u2 * key_ge)
+# Public key values from step 7:
+key_ge = GE(0x11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c,
+            0xb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3)
 
-if sig_r == int(R.x):
-  print("TRUE - valid signature")
-else:
-  print("FALSE - invalid signature")
+# Your completed function from step 8:
+def verify(r, s, key, msg):
+  if r == 0 or r >= GE.ORDER:
+    print("FALSE - invalid r value")
+
+  if s == 0 or s >= GE.ORDER:
+    print("FALSE - invalid s value")
+
+  sig_s_inverted = pow(s, -1, GE.ORDER)
+  u1 = (msg * sig_s_inverted) % GE.ORDER
+  u2 = (r * sig_s_inverted) % GE.ORDER
+  R = (u1 * G) + (u2 * key)
+
+  return r == int(R.x)
+  # Should return False! Signature is invalid
 ```
 
-We know Satoshi's signature is valid, it has been checked by every Bitcoin full
-node since 2010! If your program does not return "true" something is wrong.
+
+
+12. How did Vanderpoole even create that signature?
+
+For some narrative-appropriate reason, we have reason to believe that Vanderpoole
+really used this regtest Bitcoin address to sign his fraudulent message:
+
+```
+mvG1WcMQV4cFq1aEN6uijg8FSCfcxtMEqS
+```
+
+with corresponding public key:
+
+```
+049d57ded01d3a7652a957cf86fd4c3d2a76e76e83d3c965e1dca45f1ee06630636b8bcbc3df3fbc9669efa2ccd5d7fa5a89fe1c0045684189f01ea915b8a746a6
+```
+
+Can you verify Vanderpoole's message and signature using THIS key?
+
+(coding challenge is a copy of step 11 except it should return True)
+
+
