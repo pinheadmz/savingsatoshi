@@ -53,7 +53,7 @@ https://blockstream.info/tx/0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241
 
 This is the transaction Satoshi created by mining block #9. The transaction creates 50 BTC
 and locks them under control of... a public key! Find the data beginning with `04...` in
-the `scriptPubKey`. The signature lives between the script commands `OP_PUSHBYTES` and `OP_CHECKSIG`.
+the `scriptPubKey`. The public key lives between the script commands `OP_PUSHBYTES` and `OP_CHECKSIG`.
 Copy/paste it here:
 
 [ 0411... ... ... ... ]
