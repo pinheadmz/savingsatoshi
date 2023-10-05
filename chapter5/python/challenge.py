@@ -57,9 +57,11 @@ def verify(sig_r, sig_s, pubkey_x, pubkey_y, msg):
     key = secp256k1.GE(pubkey_x, pubkey_y)
     # Next, check the range limits of the signature values
     if sig_r == 0 or sig_r >= secp256k1.GE.ORDER:
-        print("FALSE - invalid r value")
+        print("invalid r value")
+        return False
     if sig_s == 0 or sig_s >= secp256k1.GE.ORDER:
-        print("FALSE - invalid s value")
+        print("invalid s value")
+        return False
     # Implement ECDSA and return a boolean
     #   u1 = m / s mod n
     #   u2 = r / s mod n

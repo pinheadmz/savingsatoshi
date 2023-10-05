@@ -54,9 +54,11 @@ def msg_to_integer(msg):
 def verify(sig_r, sig_s, pubkey_x, pubkey_y, msg):
     key = secp256k1.GE(pubkey_x, pubkey_y)
     if sig_r == 0 or sig_r >= secp256k1.GE.ORDER:
-        print("FALSE - invalid r value")
+        print("invalid r value")
+        return False
     if sig_s == 0 or sig_s >= secp256k1.GE.ORDER:
-        print("FALSE - invalid s value")
+        print("invalid s value")
+        return False
     sig_s_inverted = pow(sig_s, -1, secp256k1.GE.ORDER)
     u1 = (msg * sig_s_inverted) % secp256k1.GE.ORDER
     u2 = (sig_r * sig_s_inverted) % secp256k1.GE.ORDER

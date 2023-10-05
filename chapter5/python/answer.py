@@ -60,9 +60,11 @@ def verify(sig_r, sig_s, pubkey_x, pubkey_y, msg):
     key = secp256k1.GE(pubkey_x, pubkey_y)
     # Next, check the range limits of the signature values
     if sig_r == 0 or sig_r >= secp256k1.GE.ORDER:
-        print("FALSE - invalid r value")
+        print("invalid r value")
+        return False
     if sig_s == 0 or sig_s >= secp256k1.GE.ORDER:
-        print("FALSE - invalid s value")
+        print("invalid s value")
+        return False
     # Implement ECDSA!
     #   u1 = m / s mod n
     #   u2 = r / s mod n
@@ -80,8 +82,8 @@ def encode_message(text):
     # with the Bitcoin protocol prefix string followed by the text
     # and both components preceded by a length byte.
     # Returns a hex string.
-    prefix = b"Bitcoin Signed Message:\n"
-    vector = bytes([len(prefix)]) + prefix + bytes([len(text)]) + text
+    prefix = "Bitcoin Signed Message:\n"
+    vector = bytes([len(prefix)]) + bytes(prefix, 'ascii') + bytes([len(text)]) + bytes(text, 'ascii')
     return vector.hex()
 
 
@@ -112,9 +114,9 @@ if __name__ == '__main__':
 
     def verify_vp():
         # Provided by Vanderpoole
-        text =  b"I am Vanderpoole and I have control of the private key Satoshi\n"
-        text += b"used to sign the first-ever Bitcoin transaction confirmed in block #170.\n"
-        text += b"This message is signed with the same private key."
+        text =  "I am Vanderpoole and I have control of the private key Satoshi\n"
+        text += "used to sign the first-ever Bitcoin transaction confirmed in block #170.\n"
+        text += "This message is signed with the same private key."
         sig = "H4vQbVD0pLK7pkzPto8BHourzsBrHMB3Qf5oYVmr741pPwdU2m6FaZZmxh4ScHxFoDelFC9qG0PnAUl5qMFth8k="
 
         msg_hex = encode_message(text)
