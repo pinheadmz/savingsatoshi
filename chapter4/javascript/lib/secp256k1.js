@@ -186,10 +186,14 @@ class GE {
       y = y.neg();
     return new GE(x, y);
   }
+
+  [inspect.custom]() {
+    return `<GE: ${this.x.hex()}, ${this.y.hex()}>`;
+  }
 }
 
 exports.FIELD_SIZE = FIELD_SIZE;
 exports.FE = FE;
 exports.GE = GE;
 exports.G = GE.liftX(new FE(0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n));
-
+exports.ORDER = ORDER;

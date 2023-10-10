@@ -19,6 +19,7 @@ console.log('Private key:', k.toString(16));
 
 // Derive the public key by multiplying by generator point
 const P = secp256k1.G.mul(k);
+console.log(P)
 console.log('Public key: x:', P.x);
 console.log('            y:', P.y);
 
