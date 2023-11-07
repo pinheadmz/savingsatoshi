@@ -2,10 +2,9 @@
 
 
 
-1. Mike Ramen needs 2 BTC to book his flight to Vanderpoole's private island. You two
-already have 1 BTC in a shared "multisig" address. You decide to top that off with
-1 BTC from your chapter 3 mining rewards, which have been sent by the mining pool
-to the address you created in chapter 4.
+1. Mike Ramen needs 1 BTC to book his flight to Vanderpoole's private island. You
+decide to send him 1 BTC from your chapter 3 mining rewards, which have been sent
+by the mining pool to the address you created in chapter 4.
 
 You open you Bitcoin full node and execute a command to see where your money
 is in the blockchain:
@@ -21,7 +20,7 @@ $ bitcoin-cli listunspent
     "label": "",
     "scriptPubKey": "0014da9a3a9443424aec7ab7a628777f7130e7c92789",
     "amount": 6.50000000,
-    "confirmations": 341
+    "confirmations": 341,
     "spendable": true,
     "solvable": true,
     "desc": "wpkh([a73804d3/0'/0'/0']02ab3d3cb82c1eb89168824b20f667224d868250dedec69177012e5a26c5221ae8)#5mf00k95",
@@ -49,9 +48,9 @@ and Bitcoin transactions are now version 2, and follow a new protocol called Seg
 Witness.
 
 Segregated Witness transactions work just like their legacy predecessors. There are a few
-global values like `version` and `locktime`. There is an array of Inputs (UTXOs we want to spend)
-and an array of Outputs (new UTXOs we want to create, for other people to spend in the future).
-There will also be an array of witnesses for each input. That is where signatures and scripts
+global values like `version` and `locktime`. There is an array of inputs (UTXOs we want to spend)
+and an array of outputs (new UTXOs we want to create, for other people to spend in the future).
+There will also be an array of witnesses, one for each input. That is where signatures and scripts
 will go instead of the `scriptSig`.
 
 The message serializations for all these components is documented here:
@@ -60,108 +59,138 @@ and here:
 https://github.com/bitcoinbook/bitcoinbook/blob/develop/ch06.asciidoc
 
 
+And remember: integers in Bitcoin are serialized little-endian!
 
 
-2. Inputs: Finish the implementation of `Class Input`. It should have a method `from_json()` which
-can parse a UTXO in JSON format like the one you got above from `listunspent`. It also must have a
-`serialize()` method that returns a byte array according to the specification:
+2. Finish the implementation of `Class Input`:
+
+It should have a method `from_output(txid: str, vout: int, value: int, scriptcode: bytes)`.
+
+The first two arguments are the transaction ID and the index of the output of that
+transaction you want to spend from. Eventually we will pass in the `txid` and `vout`
+values you got above from `listunspent`. Note that hashes in Bitcoin are little-endian,
+which means that you will need to *reverse the byte order* of the `txid` string!
+
+The second two arguments are the value of the output we want to spend (in satoshis)
+and something called a `scriptcode`. For now, just store these data as properties
+of the `Input` class, we won't need them until step 6.
+
+We also need a `serialize()` method that returns a byte array according to the specification:
 
 Outpoint:
 
-| Size | Name     | Description |
-|------|----------|-------------|
-|  32  | `txid`   | Hash of transaction being spent from |
-|  4   | `index`  | Position of output being spent in the transaction's output array |
+| Size | Name     | Type  | Description |
+|------|----------|-------|-------------|
+|  32  | `txid`   | bytes | Hash of transaction being spent from |
+|  4   | `index`  | int   | Position of output being spent in the transaction's output array |
 
 
 Input:
 
-| Size | Name     | Description |
-|------|----------|-------------|
-|  36  | outpoint | txid and output index being spent from |
-|  1   | length   | `ScriptSig` length (always `0` for Segregated Witness) |
-|  0   | script   | Always empty for Segregated Witness |
-|  4   | sequence | Default value is `0xffffffff` but can be used for relative timelocks |
+| Size | Name     | Type  | Description |
+|------|----------|-------|-------------|
+|  36  | outpoint | bytes | `txid` and output index being spent from |
+|  1   | length   | int   | `ScriptSig` length (always `0` for Segregated Witness) |
+|  0   | script   | bytes | Always empty for Segregated Witness |
+|  4   | sequence | int   | Default value is `0xffffffff` but can be used for relative timelocks |
 
 
 
-3. Outputs: Finish the implementation of `Class Output`. It should have a method `from_options(addr, value)`
-which accepts a Bitcoin address as a string (like the address from Mike Ramen) and a value as an integer
-number of satoshis! Remember, 1 BTC = 100000000 satoshis. You will need to use our bech32 library
-again to decode the address into `version` and `data` components. The class also needs a `serialize()`
-method method that returns a byte array according to the specification:
+3. Finish the implementation of `Class Output`:
 
-| Size | Name     | Description |
-|------|----------|-------------|
-|  8   | value    | Little-endian integer number of satoshis being sent |
-|  1   | length   | Total length of the following script (the "witness program") |
-|  1   | version  | The segregated witness version. Derived from the bech32 address |
-|  1   | length   | Length of the following witness program data. |
-| (var)| program  | The data component derived from the bech32 address, between 2 and 40 bytes |
+It should have a method `from_options(addr: str, value: int)` which accepts a Bitcoin
+address as a string (like the address from Mike Ramen) and a value as an integer.
+The value is expressed as a number of satoshis! Remember, 1 BTC = 100000000 satoshis.
+You will need to use our bech32 library again to decode the address into `version`
+and `data` components.
+
+The class also needs a `serialize()` method method that returns a byte array according to the specification:
+
+Output:
+
+| Size | Name     | Type  | Description |
+|------|----------|-------|-------------|
+|  8   | value    | int   | Number of satoshis being sent |
+|  1   | length   | int   | Total length of the following script (the "witness program") |
+|  1   | version  | int   | The segregated witness version. Derived from the bech32 address |
+|  1   | length   | int   | Length of the following witness program data |
+| (var)| program  | bytes | The data component derived from the bech32 address |
 
 
 
-4. Witnesses: Finish the implementation of `Class Witness`. It should have a method `push_item(data)`
-which accepts a byte array and adds that item to the witness stack. It will also need a `serialize()`
-method that returns the serialized witness stack:
+4. Finish the implementation of `Class Witness`:
+
+It should have a method `push_item(data)` which accepts a byte array and adds
+that item to the witness stack.
+
+It will also need a `serialize()` method that returns the serialized witness stack:
 
 Witness stack:
 
-| Size | Name     | Description |
-|------|----------|-------------|
-|  1   | count    | The number of items in the witness stack |
-| (var)| items    | Serialized stack items |
+| Size | Name     | Type    | Description |
+|------|----------|---------|-------------|
+|  1   | count    | int     | The number of items in the witness stack |
+| (var)| items    | items[] | Serialized stack items |
 
 Witness stack item:
 
-| Size | Name     | Description |
-|------|----------|-------------|
-|  1   | length   | Total length of the following stack item |
-| (var)| data     | The raw bytes of the stack item |
+| Size | Name     | Type  | Description |
+|------|----------|-------|-------------|
+|  1   | length   | int   | Total length of the following stack item |
+| (var)| data     | bytes | The raw bytes of the stack item |
 
 
 
-5. Transaction: Finish the implementation of `Class Transaction`. It should have
-global properties `locktime` and `version` as well as an array of inputs, outputs,
-and witness stacks. It will need a `serialize()` method that outputs the entire
+5. Finish the implementation of `Class Transaction`:
+
+It should have global properties `locktime` and `version` as well as an array of
+inputs, outputs, and witness stacks.
+
+It will need a `serialize()` method that outputs the entire
 transaction as bytes formatted for broadcast on the Bitcoin p2p network.
 
 
-| Size | Name     | Description |
-|------|----------|-------------|
-|  4   | version  | Currently `2`, encoded as a little-endian integer |
-|  2   | flags    | Must be exactly `0x0001` for segregated witness |
-|  1   | in count | The number of inputs |
-| (var)| inputs   | All transaction inputs, serialized |
-|  1   | out count| The number of outputs |
-| (var)| outputs  | All transaction outputs, serialized |
-| (var)| witness  | All witness stacks, serialized |
-|  4   | locktime | Setting to `0xffffffff` indicates finality |
+| Size | Name     | Type        | Description |
+|------|----------|-------------|-------------|
+|  4   | version  | int         | Currently `2` |
+|  2   | flags    | bytes       | Must be exactly `0x0001` for segregated witness |
+|  1   | in count | int         | The number of inputs |
+| (var)| inputs   | Inputs[]    | All transaction inputs, serialized |
+|  1   | out count| int         | The number of outputs |
+| (var)| outputs  | Outputs[]   | All transaction outputs, serialized |
+| (var)| witness  | Witnesses[] | All witness stacks, serialized |
+|  4   | locktime | int         | Setting to `0` indicates finality |
 
 Notice that there is no "count" value for witnesses. That is because the number
 of witness stacks must always be exactly equal to the number of inputs.
 
 
 
-6. Transaction digest: In chapter 5 we learned that to sign a transaction we
-first need to rearrange and hash its data into a message, which becomes the
-raw input to our signing algorithm. Since we are using segregated witness now,
-we also need to implement the updated transaction digest algorithm which is specified
-in [BIP 143](https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#user-content-Specification).
+6. Transaction digest:
+
+In chapter 5 we learned that to sign a transaction we first need to rearrange
+and hash its data into a message, which becomes one of the raw inputs to our signing
+algorithm. Since we are using segregated witness now, we also need to implement
+the updated transaction digest algorithm which is specified in
+[BIP 143](https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#user-content-Specification).
+
 Remember each transaction input needs its own signature, and so some components of
-the digest algorithm can be cached and reused but others are different depending
+the digest algorithm can be cached and reused but others will be different depending
 on which input is being signed! Finish the transaction method `digest(input_index)` that
-computes the 32 byte message for signing an input.
+computes the 32-byte message for signing an input.
 
-"Double SHA-256" or `dSHA256` = `sha256(sha256(data))`
+Some notes:
 
-`scriptcode` is the raw Bitcoin script being evaluated. We'll dive in to this
-more in the next section, but to spend from your pay-to-witness-public-key-hash
-address, you will you use this data:
+- "Double SHA-256" or `dSHA256` = `sha256(sha256(data))`
+
+- `scriptcode` is the raw Bitcoin script being evaluated. We added it to our `Input`
+class back in step 2, and just saved it there inside the class until now. We'll dive
+in to this more in the next section, but to spend from your pay-to-witness-public-key-hash
+address, your `scriptcode` would be:
 
 `0x1976a914{20-byte-pubkey-hash}88ac`
 
-This decodes to the following Bitcoin script:
+...which decodes to the following Bitcoin script:
 ```
 OP_PUSHBYTES_25
 OP_DUP
@@ -198,6 +227,11 @@ called `compute_input_signature(index, key)` to your `Transaction` class that ac
 index number and a 32-byte private key. It should compute the message digest for
 the chosen input, and return an ECDSA signature in the form of two 32-byte
 numbers `r` and `s`.
+
+See https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm
+for the ECDSA signing algorithm.
+Also https://www.secg.org/sec1-v2.pdf Page 44, Section 4.1.3.
+
 
 
 
