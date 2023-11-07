@@ -183,10 +183,13 @@ Some notes:
 
 - "Double SHA-256" or `dSHA256` = `sha256(sha256(data))`
 
-- `scriptcode` is the raw Bitcoin script being evaluated. We added it to our `Input`
-class back in step 2, and just saved it there inside the class until now. We'll dive
-in to this more in the next section, but to spend from your pay-to-witness-public-key-hash
-address, your `scriptcode` would be:
+- `value` is the amount of the satoshis in the output being spent from. We added
+it to our `Input` class back in step 2, and just saved it there inside the class
+until now.
+
+- `scriptcode` is the raw Bitcoin script being evaluated. We also added this to our `Input`
+class back in step 2. We'll dive in to this more in the next section, but to spend
+from your pay-to-witness-public-key-hash address, your `scriptcode` would be:
 
 `0x1976a914{20-byte-pubkey-hash}88ac`
 
@@ -203,60 +206,78 @@ OP_CHECKSIG
 
 The raw transaction hash preimage is the the serialization of:
 
-| Size | Data |
-|------|------|
-|  4   | Version (little endian) |
-|  32  | `dSHA256` of all outpoints from all inputs, serialized |
-|  32  | `dSHA256` of all sequence values from all inputs, serialized |
-|  36  | The serialized outpoint of the input being signed |
-| (var)| `scriptcode` |
-|  8   | Value in satoshis being spent by the input being signed (little endian) |
-|  4   | Sequence value of the input being signed |
-|  32  | `dSHA256` or all outputs, serialized |
-|  4   | Locktime (little endian) |
-|  4   | Sighash type, we will use `0x01000000` to indicate "ALL" |
+| Size | Name     | Type  | Description |
+|------|----------|-------|-------------|
+|  4   | version  | int   | Transaction version, default `2` |
+|  32  | outpoints| bytes | The `dSHA256` of all outpoints from all inputs, serialized |
+|  32  | sequences| bytes | The `dSHA256` of all sequence values from all inputs, serialized |
+|  36  | outpoint | bytes | The serialized outpoint of the single input being signed |
+| (var)| scriptcode | bytes | The output script being spent from |
+|  8   | value    | int   | The value in satoshis being spent by the single input being signed |
+|  4   | sequence | int   | The sequence value of the single input being signed |
+|  32  | outputs  | bytes | The `dSHA256` of all outputs, serialized |
+|  4   | locktime | int   | Transaction locktime, default `0` |
+|  4   | sighash  | int   | Signature hash type, we will use `1` to indicate "ALL" |
 
 
 Finally, the message we sign is the double SHA-256 of all this serialized data.
 
 
 
-7. Signing! We wrote the ECDSA signature verification code in the last chapter,
+7. Signing!
+
+We wrote the ECDSA signature verification code in the last chapter,
 now we need to rearrange that a bit to create a valid signature. Add a method
-called `compute_input_signature(index, key)` to your `Transaction` class that accepts an input
-index number and a 32-byte private key. It should compute the message digest for
-the chosen input, and return an ECDSA signature in the form of two 32-byte
-numbers `r` and `s`.
+called `compute_input_signature(index: int, key: int)` to your `Transaction`
+class that accepts an input index number and a private key (a 32-byte integer!).
+It should compute the message digest for the chosen input using the `digest()`
+method from step 6, and return an ECDSA signature in the form of two 32-byte
+integers `r` and `s`.
 
 See https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm
 for the ECDSA signing algorithm.
 Also https://www.secg.org/sec1-v2.pdf Page 44, Section 4.1.3.
 
+The Bitcoin protocol requires one extra step to the signing algorithm, which
+requires that the `s` value is "low", meaning less than the order of the curve
+divided by 2. Learn more about this in BIP 146:
+https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki#user-content-LOW_S
 
 
 
-8. Populate the witness: Finish the method `sign_input(index, key)` that calls
-our previous method `compute_input_signature(index, key)` and handles its return
-value. The `r` and `s` values need to be encoded with an algorithm called DER
-which we have implemented for you. Once we have that we need to create a `Witness`
-object with two stack items: your public key, and this new signature. The witness
-object can be appended to the witnesses array of the transaction object.
+8. Populate the witness:
+
+Finish the method `sign_input(index: int, key: int)` that calls
+our step 7 method `compute_input_signature(index, key)` and handles its return
+value. The `r` and `s` numbers need to be encoded with an algorithm called DER
+which we have implemented for you.
+
+Bitcoin requires one extra byte appended to the DER-signature which represents
+the "sighash type". For now we'll always use the byte `0x01` for this indicating
+"SIGHASH ALL".
+
+Once we have that signature blob we need to create a `Witness`
+object with two stack items: the signature blob, and your compressed public key.
+Push the signature first, followed by the public key.
+
+The witness stack object can then be appended to the witnesses array of the
+transaction object.
 
 
 
+9. Put it all together:
 
-9. Put it all together: We know our input, we know our output. Are we ready to
-build and sign a transaction? Not quite. We have a 6.5 BTC input and a 1 BTC
-output... what happens to the other 5.5 BTC? Most of that will be "change" and
-we need to send it back to our own address!
+We know our input, we know our output. Are we ready to build and sign a transaction?
+Not quite. We have a 6.5 BTC input and a 1 BTC output... what happens to the other 5.5 BTC?
+Most of that will be "change" and we need to send it back to our own address!
 
 Write a script that creates and signs a `Transaction` object. It should have one input
 (the UTXO we identified in step 1) and two outputs:
 
-Mike Ramen gets 100,000,000 satoshis to `bc1qgghq08syehkym52ueu9nl5x8gth23vr8hurv9dyfcmhaqk4lrlgs28epwj`
-You get 550,000,000 back to your address `bc1qm2dr49zrgf9wc74h5c58wlm3xrnujfuf5g80hs`
+- Mike Ramen gets 100,000,000 satoshis to `bc1qgghq08syehkym52ueu9nl5x8gth23vr8hurv9dyfcmhaqk4lrlgs28epwj`
+- You get 550,000,000 back to your address `bc1qm2dr49zrgf9wc74h5c58wlm3xrnujfuf5g80hs`
 
-Oh wait! We need to include a "fee". We'll shave off a tiny piece of our change output
+But wait! We need to include a "fee". We'll shave off a tiny piece of our change output
 for the mining pools to incentivize them to include our transaction in a block.
 Let's reduce our change from 550,000,000 to 549,999,000 satoshis.
 
