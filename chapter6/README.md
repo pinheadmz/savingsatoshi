@@ -120,7 +120,7 @@ Output:
 
 4. Finish the implementation of `Class Witness`:
 
-It should have a method `push_item(data)` which accepts a byte array and adds
+It should have a method `push_item(data: bytes)` which accepts a byte array and adds
 that item to the witness stack.
 
 It will also need a `serialize()` method that returns the serialized witness stack:
@@ -203,6 +203,9 @@ OP_PUSHBYTES_20
 OP_EQUALVERIFY
 OP_CHECKSIG
 ```
+
+For more information about `scriptcode` see
+[BIP 143](https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki)
 
 The raw transaction hash preimage is the the serialization of:
 

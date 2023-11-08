@@ -1,6 +1,9 @@
+# For computing double-SHA256
 import hashlib
-import random
-import struct
+# For generating entropy used in ECDSA signing
+from random import randrange
+# For converting integers to series of bytes
+from struct import pack
 # Import the local ECDSA and bech32 modules
 from lib import secp256k1, bech32
 
@@ -17,7 +20,7 @@ class Outpoint:
         # Encode the index as little-endian unsigned integer
         r = b""
         r += self.txid
-        r += struct.pack("<I", self.index)
+        r += pack("<I", self.index)
         return r
 
 class Input:
@@ -39,8 +42,8 @@ class Input:
     def serialize(self):
         r = b""
         r += self.outpoint.serialize()
-        r += struct.pack("<B", len(self.script))
-        r += struct.pack("<I", self.sequence)
+        r += pack("<B", len(self.script))
+        r += pack("<I", self.sequence)
         return r
 
 class Output:
@@ -61,10 +64,10 @@ class Output:
 
     def serialize(self):
         r = b""
-        r += struct.pack("<q", self.value)
-        r += struct.pack("<B", len(self.witness_data) + 2)
-        r += struct.pack("<B", self.witness_version)
-        r += struct.pack("<B", len(self.witness_data))
+        r += pack("<q", self.value)
+        r += pack("<B", len(self.witness_data) + 2)
+        r += pack("<B", self.witness_version)
+        r += pack("<B", len(self.witness_data))
         r += self.witness_data
         return r
 
@@ -77,9 +80,9 @@ class Witness:
 
     def serialize(self):
         r = b""
-        r += struct.pack("<B", len(self.items))
+        r += pack("<B", len(self.items))
         for item in self.items:
-            r += struct.pack("<B", len(item))
+            r += pack("<B", len(item))
             r += item
         return r
 
@@ -94,17 +97,17 @@ class Transaction:
 
     def serialize(self):
         r = b""
-        r += struct.pack("<I", self.version)
+        r += pack("<I", self.version)
         r += self.flags
-        r += struct.pack("<B", len(self.inputs))
+        r += pack("<B", len(self.inputs))
         for inp in self.inputs:
             r += inp.serialize()
-        r += struct.pack("<B", len(self.outputs))
+        r += pack("<B", len(self.outputs))
         for out in self.outputs:
             r += out.serialize()
         for wit in self.witnesses:
             r += wit.serialize()
-        r += struct.pack("<I", self.locktime)
+        r += pack("<I", self.locktime)
         return r
 
     def digest(self, input_index):
@@ -114,7 +117,7 @@ class Transaction:
         sighash = 1
 
         s = b""
-        s += struct.pack("<I", self.version)
+        s += pack("<I", self.version)
 
         outpoints = b""
         for inp in self.inputs:
@@ -123,21 +126,21 @@ class Transaction:
 
         sequences = b""
         for inp in self.inputs:
-            sequences += struct.pack("<I", inp.sequence)
+            sequences += pack("<I", inp.sequence)
         s += dsha256(sequences)
 
         s += self.inputs[input_index].outpoint.serialize()
         s += self.inputs[input_index].scriptcode
-        s += struct.pack("<q", self.inputs[input_index].value)
-        s += struct.pack("<I", self.inputs[input_index].sequence)
+        s += pack("<q", self.inputs[input_index].value)
+        s += pack("<I", self.inputs[input_index].sequence)
 
         outputs = b""
         for out in self.outputs:
             outputs += out.serialize()
         s += dsha256(outputs)
 
-        s += struct.pack("<I", self.locktime)
-        s += struct.pack("<I", sighash)
+        s += pack("<I", self.locktime)
+        s += pack("<I", sighash)
         return dsha256(s)
 
     def compute_input_signature(self, index, key):
@@ -151,7 +154,7 @@ class Transaction:
         # return (r, s)
         assert isinstance(key, int)
         msg = self.digest(index)
-        k = random.randrange(1, secp256k1.GE.ORDER)
+        k = randrange(1, secp256k1.GE.ORDER)
         k_inverted = pow(k, -1, secp256k1.GE.ORDER)
         R = k * secp256k1.G
         r = int(R.x) % secp256k1.GE.ORDER
